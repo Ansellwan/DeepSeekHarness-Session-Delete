@@ -335,7 +335,10 @@ export function apply(ctx) {
           }
           await opLog(`已删除会话 ${sessionId}，文件 ${removedPaths.length} 处: ${removedPaths.join(' | ')}`)
           log(`已删除会话 ${sessionId}（工作区：${registry.workspaces.join('、') || '未知'}，文件 ${removedPaths.length} 处）`)
-          sendJson(res, 200, { ok: true, ...registry, removed: removedPaths })
+          // A session the Host still holds in its in-memory store (`ctx.sessions`
+          // exposes no remove API) keeps showing in the open window until the app
+          // restarts; the durable state is already gone, so say so out loud.
+          sendJson(res, 200, { ok: true, ...registry, removed: removedPaths, live: busy.detail === 'agent-idle' })
           return
         }
         await opLog(`404 ${req.method} ${req.url}`)

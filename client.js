@@ -23,7 +23,7 @@ window.__ModuleLoader__.load({
   factory(require) {
     // Human-synced copy of package.json#version: client bundles cannot read
     // package.json at runtime. Bump together with `npm version`.
-    const VERSION = '1.0.6'
+    const VERSION = '1.0.7'
 
     const React = require('react')
     const h = React.createElement
@@ -40,6 +40,7 @@ window.__ModuleLoader__.load({
         cancel: '取消',
         deleting: '正在删除…',
         done: '会话已删除',
+        doneLive: '会话已删除（此窗口仍显示该会话，重启 DSH 后彻底消失）',
         failed: '删除失败：{message}',
       },
       en: {
@@ -52,6 +53,7 @@ window.__ModuleLoader__.load({
         cancel: 'Cancel',
         deleting: 'Deleting…',
         done: 'Session deleted',
+        doneLive: 'Session deleted (this window still lists it until DSH restarts)',
         failed: 'Delete failed: {message}',
       },
     }
@@ -202,7 +204,9 @@ window.__ModuleLoader__.load({
           if (!response.ok || payload?.ok !== true) {
             throw new Error(payload?.error ?? `HTTP ${response.status}`)
           }
-          setToast(t('done'))
+          // `live` means the Host still holds this session in memory (no unload
+          // API exists), so the open window keeps listing it until a restart.
+          setToast(t(payload?.live === true ? 'doneLive' : 'done'))
           settleRequest()
         } catch (reason) {
           setError(reason instanceof Error ? reason.message : String(reason))
