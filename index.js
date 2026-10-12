@@ -28,8 +28,8 @@
  */
 
 import { homedir } from 'node:os'
-import { join } from 'node:path'
-import { rm } from 'node:fs/promises'
+import { join, dirname } from 'node:path'
+import { rm, appendFileSync, mkdirSync } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 
 const TAG = '[session-delete]'
@@ -53,6 +53,23 @@ const projcacheSessionsDir = () => {
 
 /** A session id is always `session-<uuid>`; anything else is rejected early. */
 const SESSION_ID_RE = /^session-[0-9a-fA-F-]{36}$/
+
+/** Operation log beside the DSH logs — the crash dialog shows symptoms, this file shows causes. */
+const opLogPath = () => {
+  const home = process.env.USERPROFILE ?? process.env.HOME ?? homedir()
+  const dshHome = process.env.DSH_SESSION_DELETE_HOME ?? process.env.DSH_HOME ?? join(home, '.dsh')
+  return join(dshHome, 'logs', 'session-delete.log')
+}
+
+/** Append one timestamped line; diagnostics must never break the request path. */
+async function opLog(line) {
+  try {
+    await mkdir(dirname(opLogPath()), { recursive: true })
+    await appendFile(opLogPath(), `${new Date().toISOString()} ${line}\n`, 'utf8')
+  } catch {
+    /* swallow */
+  }
+}
 
 export const name = 'session-delete'
 export const inject = ['webServer', 'connection', 'storageDomain']
@@ -110,6 +127,7 @@ function probeBusy(ctx, sessionId) {
 async function forgetInRegistry(ctx, sessionId) {
   const facility = ctx.get?.('storageDomain') ?? ctx.storageDomain
   const domain = facility?.get?.('workspace')
+  await opLog(`forgetInRegistry: facility=${facility ? '有' : '无'} domain=${domain ? domain.name ?? 'workspace' : '无'}`)
   if (!domain || typeof domain.table !== 'function' || !domain.global) {
     throw new Error('workspace 存储域未打开，无法从注册表移除该会话')
   }
@@ -121,6 +139,7 @@ async function forgetInRegistry(ctx, sessionId) {
   const globalState = { ...domain.global.get() }
   const archiveSet = globalState.archivedSessionIds ?? []
   const pinSet = globalState.pinnedSessionIds ?? []
+  await opLog(`registry 全局: archived=${archiveSet.length} pinned=${pinSet.length} 含目标 archived=${archiveSet.includes(sessionId)} pinned=${pinSet.includes(sessionId)}`)
   if (archiveSet.includes(sessionId)) {
     removed.archived = true
     globalState.archivedSessionIds = archiveSet.filter((id) => id !== sessionId)
@@ -133,8 +152,12 @@ async function forgetInRegistry(ctx, sessionId) {
 
   // 2. Per-workspace ownership rows.
   const table = domain.table('workspaces')
+  let scanned = 0
   for (const [workspaceId, record] of table.entries()) {
-    if (!Array.isArray(record?.sessionIds) || !record.sessionIds.includes(sessionId)) continue
+    scanned += 1
+    const owned = Array.isArray(record?.sessionIds) && record.sessionIds.includes(sessionId)
+    await opLog(`registry 扫描 ${workspaceId}(${record?.title ?? '?'}): sessions=${record?.sessionIds?.length ?? '?'} 含目标=${owned}`)
+    if (!owned) continue
     const next = {
       ...record,
       sessionIds: record.sessionIds.filter((id) => id !== sessionId),
@@ -143,6 +166,7 @@ async function forgetInRegistry(ctx, sessionId) {
     await table.update(workspaceId, () => next)
     removed.workspaces.push(record.title || workspaceId)
   }
+  await opLog(`registry 扫描完成: 共 ${scanned} 个工作区, 命中 ${removed.workspaces.length}`)
   return removed
 }
 
@@ -271,13 +295,18 @@ export function apply(ctx) {
     kind: 'prefix',
     path: ROUTE_PREFIX,
     handler: async (req, res) => {
-      if (rejectUntrusted(req, res)) return
+      if (rejectUntrusted(req, res)) {
+        await opLog(`REJECTED(trust) ${req.method} ${req.url}`)
+        return
+      }
       const url = new URL(req.url ?? '/', 'http://127.0.0.1')
       try {
         if (url.pathname === `${ROUTE_PREFIX}/status` && req.method === 'GET') {
           const sessionId = url.searchParams.get('sessionId') ?? ''
           if (!SESSION_ID_RE.test(sessionId)) throw Object.assign(new Error('非法的 sessionId'), { statusCode: 400 })
-          sendJson(res, 200, probeBusy(ctx, sessionId))
+          const probe = probeBusy(ctx, sessionId)
+          await opLog(`status ${sessionId} → ${JSON.stringify(probe)}`)
+          sendJson(res, 200, probe)
           return
         }
         if (url.pathname === `${ROUTE_PREFIX}/delete` && req.method === 'POST') {
@@ -288,26 +317,32 @@ export function apply(ctx) {
           }
           // Hard gate: never delete a session that still owns live work.
           const busy = probeBusy(ctx, sessionId)
+          await opLog(`delete ${sessionId} busy=${busy.busy}(${busy.detail})`)
           if (busy.busy) {
             sendJson(res, 409, { ok: false, error: '会话仍有进行中的工作，无法删除', detail: busy.detail })
             return
           }
           const registry = await forgetInRegistry(ctx, sessionId)
+          await opLog(`registry 移除完成: workspaces=[${registry.workspaces.join('、')}] archived=${registry.archived} pinned=${registry.pinned}`)
           let removedPaths = []
           try {
             removedPaths = await erasePayload(ctx, sessionId)
           } catch (error) {
             // Registry is already consistent; report the payload failure but
             // do not roll the sidebar removal back.
+            await opLog(`载荷清理失败（注册表已移除）: ${error?.message ?? error}`)
             log(`会话载荷清理失败（注册表已移除）：${sessionId}`, error)
           }
+          await opLog(`已删除会话 ${sessionId}，文件 ${removedPaths.length} 处: ${removedPaths.join(' | ')}`)
           log(`已删除会话 ${sessionId}（工作区：${registry.workspaces.join('、') || '未知'}，文件 ${removedPaths.length} 处）`)
           sendJson(res, 200, { ok: true, ...registry, removed: removedPaths })
           return
         }
+        await opLog(`404 ${req.method} ${req.url}`)
         sendJson(res, 404, { error: '未知接口' })
       } catch (error) {
         const status = Number(error?.statusCode) || 500
+        await opLog(`ERROR ${req.method} ${req.url} → ${status}: ${error instanceof Error ? error.message : String(error)}\n${error instanceof Error ? error.stack : ''}`)
         log(`请求失败：${req?.url ?? ''}`, error)
         sendJson(res, status, { error: error instanceof Error ? error.message : String(error) })
       }
@@ -315,4 +350,5 @@ export function apply(ctx) {
   })
 
   log(`删除接口就绪：${ROUTE_PREFIX}/status 与 ${ROUTE_PREFIX}/delete`)
+  void opLog(`plugin activated (session-delete), routes on ${ROUTE_PREFIX}`)
 }
