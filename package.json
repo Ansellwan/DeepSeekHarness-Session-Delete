@@ -1,0 +1,56 @@
+{
+  "name": "dsh-session-clean",
+  "version": "1.0.6",
+  "description": "为 DeepSeek Harness 侧栏会话菜单补充官方缺失的「删除会话」：运行中置灰、二次确认、注册表+磁盘一并清理。Adds the missing per-session Delete action to the DeepSeek Harness sidebar.",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "author": {
+    "name": "Ansellwan",
+    "url": "https://github.com/Ansellwan"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ansellwan/DeepSeekHarness-Session-Delete.git"
+  },
+  "homepage": "https://github.com/Ansellwan/DeepSeekHarness-Session-Delete#readme",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "session-management"
+  ],
+  "scripts": {
+    "test": "node tools/check-declaration.mjs && node tools/smoke-host.mjs",
+    "prepublishOnly": "node tools/check-declaration.mjs && node tools/smoke-host.mjs"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh.md",
+    "LICENSE"
+  ],
+  "meta": {
+    "title": "删除会话",
+    "description": "在侧栏会话的 ⋯ 菜单里加入「删除会话」：运行中置灰，二次确认后从注册表与磁盘一并移除。"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  }
+}
