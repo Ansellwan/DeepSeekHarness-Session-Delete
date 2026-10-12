@@ -24,7 +24,7 @@
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const failures = []
@@ -106,6 +106,32 @@ if (typeof patchPath === 'string' && existsSync(join(ROOT, patchPath))) {
   const names = [...patch.matchAll(/name:\s*['"]?([^'"\s]+)['"]?/g)].map((match) => match[1])
   for (const name of names) {
     if (name !== pkg.name) fail(`${patchPath} references '${name}' but the package name is '${pkg.name}'`)
+  }
+}
+
+/* 5. The host half must actually LOAD, not merely parse — a bad named import
+   (`import { appendFileSync } from 'node:fs/promises'`) is valid syntax but
+   throws at link time, and the DSH loader records fiberPhase=null: the plugin
+   silently dies with no route, no client bundle and no error dialog.
+   The host half only imports node builtins, so importing it here is safe. */
+const hostEntry = pkg.exports['.']
+if (typeof hostEntry === 'string' && existsSync(join(ROOT, hostEntry))) {
+  try {
+    await import(pathToFileURL(join(ROOT, hostEntry)).href)
+    notes.push(`host half imports cleanly: ${hostEntry}`)
+  } catch (error) {
+    fail(`host half fails to load (${hostEntry}): ${error.message} — the loader would leave this plugin at fiberPhase=null, silently dead`)
+  }
+}
+
+/* 6. The client half is a browser bundle, so only its syntax is checkable here. */
+if (clientSource !== '') {
+  try {
+    // eslint-disable-next-line no-new-func -- parse-only probe
+    new Function(clientSource)
+    notes.push('client half parses')
+  } catch (error) {
+    fail(`client half has a syntax error: ${error.message}`)
   }
 }
 

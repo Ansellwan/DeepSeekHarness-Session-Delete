@@ -29,8 +29,8 @@
 
 import { homedir } from 'node:os'
 import { join, dirname } from 'node:path'
-import { rm, appendFileSync, mkdirSync } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
+import { existsSync, appendFileSync, mkdirSync } from 'node:fs'
 
 const TAG = '[session-delete]'
 
@@ -64,8 +64,8 @@ const opLogPath = () => {
 /** Append one timestamped line; diagnostics must never break the request path. */
 async function opLog(line) {
   try {
-    await mkdir(dirname(opLogPath()), { recursive: true })
-    await appendFile(opLogPath(), `${new Date().toISOString()} ${line}\n`, 'utf8')
+    mkdirSync(dirname(opLogPath()), { recursive: true })
+    appendFileSync(opLogPath(), `${new Date().toISOString()} ${line}\n`, 'utf8')
   } catch {
     /* swallow */
   }
