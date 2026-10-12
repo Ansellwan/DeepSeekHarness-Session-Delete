@@ -23,7 +23,7 @@ window.__ModuleLoader__.load({
   factory(require) {
     // Human-synced copy of package.json#version: client bundles cannot read
     // package.json at runtime. Bump together with `npm version`.
-    const VERSION = '1.1.0'
+    const VERSION = '1.1.1'
 
     const React = require('react')
     const h = React.createElement
@@ -34,30 +34,30 @@ window.__ModuleLoader__.load({
         menu: '删除会话',
         menuBusy: '会话运行中，无法删除',
         confirmTitle: '删除此会话？',
-        confirmDesc: '将永久删除「{title}」的对话记录与本地数据，此操作不可撤销。',
-        confirmNote: '若该会话正在窗口中打开，插件会先让宿主真正卸载它（行随即消失）；只有在宿主不支持时才退化为「临时隐藏」，并会明确告知结果。',
+        confirmDesc: '将永久删除「{title}」的对话记录与本地数据，删除后无法恢复。',
+        confirmNote: '正在打开的会话也能删，删完立刻从列表里消失。万一这次没能彻底删除，会先把它藏起来，并直接告诉你。',
         confirmBusy: '会话仍有进行中的工作，无法删除。',
         confirmAction: '永久删除',
         cancel: '取消',
         deleting: '正在删除…',
         done: '会话已删除',
-        doneUnloaded: '会话已删除：数据已清除，并已从宿主内存与列表移除',
-        doneLive: '数据已删除，但宿主未能卸载该会话：它被临时隐藏（切到「显示已归档」可见），重启 DSH 后彻底消失',
+        doneUnloaded: '会话已删除：数据已清除，列表里也不会再出现',
+        doneLive: '数据已删除，但这次没能把会话彻底移除：先临时藏了起来（切到「显示已归档」能看到），重启 DSH 后彻底消失',
         failed: '删除失败：{message}',
       },
       en: {
         menu: 'Delete session',
         menuBusy: 'Session is running; deletion unavailable',
         confirmTitle: 'Delete this session?',
-        confirmDesc: 'This permanently removes “{title}” — its transcript and local data. This cannot be undone.',
-        confirmNote: 'If this session is open in the window, the plugin first has the Host unload it for real (the row disappears); only when the Host cannot, it degrades to a temporary hide — and it reports which happened.',
+        confirmDesc: 'This permanently deletes “{title}” — its chat history and local data. It cannot be undone.',
+        confirmNote: 'Sessions that are open right now can be deleted too, and the row disappears as soon as it is done. If a full delete is not possible this time, it is only hidden for now and you are told right away.',
         confirmBusy: 'The session still has work in progress and cannot be deleted.',
         confirmAction: 'Delete permanently',
         cancel: 'Cancel',
         deleting: 'Deleting…',
         done: 'Session deleted',
-        doneUnloaded: 'Session deleted: data erased and removed from the Host memory and list',
-        doneLive: 'Data deleted, but the Host could not unload the session: it is temporarily hidden (visible under “show archived”) and disappears for good after a DSH restart',
+        doneUnloaded: 'Session deleted: the data is gone and it will not come back in the list',
+        doneLive: 'The data is deleted, but the session itself could not be fully removed this time: it is hidden for now (visible under “show archived”) and disappears for good after a DSH restart',
         failed: 'Delete failed: {message}',
       },
     }
