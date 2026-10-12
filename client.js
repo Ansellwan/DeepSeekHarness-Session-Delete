@@ -23,7 +23,7 @@ window.__ModuleLoader__.load({
   factory(require) {
     // Human-synced copy of package.json#version: client bundles cannot read
     // package.json at runtime. Bump together with `npm version`.
-    const VERSION = '1.0.8'
+    const VERSION = '1.1.0'
 
     const React = require('react')
     const h = React.createElement
@@ -35,12 +35,14 @@ window.__ModuleLoader__.load({
         menuBusy: '会话运行中，无法删除',
         confirmTitle: '删除此会话？',
         confirmDesc: '将永久删除「{title}」的对话记录与本地数据，此操作不可撤销。',
+        confirmNote: '若该会话正在窗口中打开，插件会先让宿主真正卸载它（行随即消失）；只有在宿主不支持时才退化为「临时隐藏」，并会明确告知结果。',
         confirmBusy: '会话仍有进行中的工作，无法删除。',
         confirmAction: '永久删除',
         cancel: '取消',
         deleting: '正在删除…',
         done: '会话已删除',
-        doneLive: '会话已删除（已从列表隐藏；重启 DSH 后彻底清除）',
+        doneUnloaded: '会话已删除：数据已清除，并已从宿主内存与列表移除',
+        doneLive: '数据已删除，但宿主未能卸载该会话：它被临时隐藏（切到「显示已归档」可见），重启 DSH 后彻底消失',
         failed: '删除失败：{message}',
       },
       en: {
@@ -48,12 +50,14 @@ window.__ModuleLoader__.load({
         menuBusy: 'Session is running; deletion unavailable',
         confirmTitle: 'Delete this session?',
         confirmDesc: 'This permanently removes “{title}” — its transcript and local data. This cannot be undone.',
+        confirmNote: 'If this session is open in the window, the plugin first has the Host unload it for real (the row disappears); only when the Host cannot, it degrades to a temporary hide — and it reports which happened.',
         confirmBusy: 'The session still has work in progress and cannot be deleted.',
         confirmAction: 'Delete permanently',
         cancel: 'Cancel',
         deleting: 'Deleting…',
         done: 'Session deleted',
-        doneLive: 'Session deleted (hidden from the list; fully cleared after a DSH restart)',
+        doneUnloaded: 'Session deleted: data erased and removed from the Host memory and list',
+        doneLive: 'Data deleted, but the Host could not unload the session: it is temporarily hidden (visible under “show archived”) and disappears for good after a DSH restart',
         failed: 'Delete failed: {message}',
       },
     }
@@ -69,6 +73,7 @@ window.__ModuleLoader__.load({
 .dsh-sd-dialog { width: min(400px, calc(100vw - 48px)); border-radius: 12px; border: .5px solid var(--dsw-alias-border-l2, #333); background: var(--dsw-alias-bg-layer-2, #1f1f1f); color: var(--dsw-alias-label-primary, #eee); padding: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.4); }
 .dsh-sd-title { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
 .dsh-sd-desc { margin: 0 0 14px; font-size: 12.5px; line-height: 19px; color: var(--dsw-alias-label-secondary, #aaa); word-break: break-all; }
+.dsh-sd-note { margin: -6px 0 14px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary, #999); }
 .dsh-sd-warn { margin: 0 0 14px; font-size: 12.5px; color: var(--dsw-alias-state-error-primary, #f85149); }
 .dsh-sd-footer { display: flex; justify-content: flex-end; gap: 8px; }
 .dsh-sd-btn { padding: 6px 14px; border-radius: 8px; border: .5px solid var(--dsw-alias-border-l2, #444); background: transparent; color: inherit; font: inherit; font-size: 12.5px; cursor: pointer; }
@@ -204,9 +209,12 @@ window.__ModuleLoader__.load({
           if (!response.ok || payload?.ok !== true) {
             throw new Error(payload?.error ?? `HTTP ${response.status}`)
           }
-          // `live` means the Host still holds this session in memory (no unload
-          // API exists), so the open window keeps listing it until a restart.
-          setToast(t(payload?.live === true ? 'doneLive' : 'done'))
+          // Three honest outcomes, never one blanket "deleted": the Host
+          // unloaded the session for real / it stayed resident and was only
+          // hidden (degraded probe) / it was already cold.
+          const unloaded = payload?.unloaded === true
+          const stillLive = payload?.live === true
+          setToast(t(unloaded ? 'doneUnloaded' : stillLive ? 'doneLive' : 'done'))
           settleRequest()
         } catch (reason) {
           setError(reason instanceof Error ? reason.message : String(reason))
@@ -221,6 +229,7 @@ window.__ModuleLoader__.load({
             h('h2', { className: 'dsh-sd-title' }, t('confirmTitle')),
             h('p', { className: 'dsh-sd-desc' },
               t('confirmDesc', { title: request.displayTitle || request.sessionId })),
+            h('p', { className: 'dsh-sd-note' }, t('confirmNote')),
             error !== null && h('p', { className: 'dsh-sd-warn' }, t('failed', { message: error })),
             h('div', { className: 'dsh-sd-footer' },
               h('button', {

@@ -35,7 +35,7 @@ function call(method, path, body) {
 ;(async () => {
   const p1 = await call('PATCH', `/repos/${REPO}`, {
     description:
-      '为 DeepSeek Harness 侧栏会话补充官方缺失的「删除会话」：运行中置灰、二次确认、真删除。 A DeepSeek Harness plugin adding the missing Delete-session action to the sidebar.',
+      '为 DeepSeek Harness 侧栏会话补充官方缺失的「删除会话」：运行中置灰、二次确认、真卸载 + 注册表/磁盘清除，做不到时如实告知。 A DeepSeek Harness plugin adding the missing Delete-session action to the sidebar.',
   })
   console.log('PATCH 描述:', p1.status)
   const p2 = await call('PUT', `/repos/${REPO}/topics`, {

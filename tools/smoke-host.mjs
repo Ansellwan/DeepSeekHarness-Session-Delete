@@ -1,79 +1,156 @@
 // Smoke test: run the host half against a mock ctx seeded with a copy of the
 // real workspace.json shape, and drive /status + /delete through the captured
-// route. All file operations land in a throwaway temp dir, never the real
-// DSH home.
+// route. All file operations land in a throwaway temp dir, never the real DSH
+// home.
+//
+// Four behaviours are pinned here, because they are the ones that were wrong
+// before 1.1.0:
+//   1. a resident session is unloaded through the framework's own detach
+//      primitive, and the archived marker is NOT written for it;
+//   2. when that primitive is unavailable the plugin degrades to hide +
+//      report, instead of claiming a clean deletion;
+//   3. the projection cache is deleted through its real domain table
+//      (`sessions`, keyed by the full session id), not through guessed names;
+//   4. a cold session touches neither the store nor the archive set.
 import { readFileSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const FAKE_HOME = join(tmpdir(), 'dsh-session-clean-smoke')
 rmSync(FAKE_HOME, { recursive: true, force: true })
 const TARGET = 'session-b37044e4-c5f2-4de2-b1fd-171e2778603d'
+const COLD = 'session-33333333-3333-4333-8333-333333333333'
+const LIVE = 'session-22222222-2222-4222-8222-222222222222'
+const DEGRADED = 'session-44444444-4444-4444-8444-444444444444'
+
 mkdirSync(join(FAKE_HOME, 'sessions', 'ws-one', TARGET, 'session_projcache'), { recursive: true })
 mkdirSync(join(FAKE_HOME, 'sessions', 'ws-two', 'session-11111111-1111-4111-8111-111111111111'), { recursive: true })
 writeFileSync(join(FAKE_HOME, 'sessions', 'ws-two', 'session-11111111-1111-4111-8111-111111111111', 'session.v4.jsonl.zstd'), 'keep')
 mkdirSync(join(FAKE_HOME, 'storages', 'session_projcache', 'sessions'), { recursive: true })
 writeFileSync(join(FAKE_HOME, 'sessions', 'ws-one', TARGET, 'session.v4.jsonl.zstd'), 'payload')
-writeFileSync(join(FAKE_HOME, 'storages', 'session_projcache', 'sessions', `${TARGET.slice('session-'.length)}.json`), '{}')
+writeFileSync(join(FAKE_HOME, 'storages', 'session_projcache', 'sessions', `${TARGET}.json`), '{}')
 process.env.DSH_SESSION_DELETE_HOME = FAKE_HOME
+
+// Spill roots: the backend mints `dsh-spill-<6 chars>` under the OS temp dir and
+// stores each session under `session-<sha256(id)[0..12]>`. Redirect the base and
+// seed one root so the removal can be asserted without touching a real root.
+const FAKE_TMP = join(FAKE_HOME, 'tmp')
+process.env.DSH_SESSION_DELETE_TMP = FAKE_TMP
+const spillDirName = (id) => `session-${createHash('sha256').update(id).digest('hex').slice(0, 12)}`
+mkdirSync(join(FAKE_TMP, 'dsh-spill-abc123', spillDirName(TARGET)), { recursive: true })
+writeFileSync(join(FAKE_TMP, 'dsh-spill-abc123', spillDirName(TARGET), 'result.txt'), 'spilled tool output')
+mkdirSync(join(FAKE_TMP, 'dsh-spill-abc123', 'session-backup'), { recursive: true })
+writeFileSync(join(FAKE_TMP, 'dsh-spill-abc123', 'session-backup', 'keep.txt'), 'not a session hash dir')
+mkdirSync(join(FAKE_TMP, 'dsh-spill-test-fixture', spillDirName(TARGET)), { recursive: true })
+writeFileSync(join(FAKE_TMP, 'dsh-spill-test-fixture', spillDirName(TARGET), 'keep.txt'), 'foreign root shape')
 
 const real = JSON.parse(readFileSync(process.env.USERPROFILE + '/.dsh/storages/workspace.json', 'utf8'))
 
 const globalState = JSON.parse(JSON.stringify(real.global))
 const workspaces = new Map(Object.entries(JSON.parse(JSON.stringify(real.tables.workspaces))))
 
+// ---- Storage domains -----------------------------------------------------
+// `workspace` keeps the real registry shape; `session_projcache` pins the real
+// table name (`sessions`) and key (the full session id) the cache service uses.
+const projcacheRecords = new Map([
+  [TARGET, { identity: {}, rows: {} }],
+  [LIVE, { identity: {}, rows: {} }],
+  [DEGRADED, { identity: {}, rows: {} }],
+])
+const projcacheDeletes = []
+
 const storageDomain = {
   get(name) {
-    if (name !== 'workspace') return undefined
-    return {
-      global: {
-        get: () => globalState,
-        async set(v) { Object.assign(globalState, v) },
-      },
-      table(t) {
-        if (t !== 'workspaces') throw new Error('no table ' + t)
-        return {
-          entries: () => workspaces.entries(),
-          keys: () => workspaces.keys(),
-          get: (k) => workspaces.get(k),
-          async update(k, fn) { workspaces.set(k, fn(workspaces.get(k))) },
-          async delete(k) { return workspaces.delete(k) },
-        }
-      },
+    if (name === 'workspace') {
+      return {
+        global: {
+          get: () => globalState,
+          async set(v) { Object.assign(globalState, v) },
+        },
+        table(t) {
+          if (t !== 'workspaces') throw new Error('no table ' + t)
+          return {
+            entries: () => workspaces.entries(),
+            keys: () => workspaces.keys(),
+            get: (k) => workspaces.get(k),
+            async update(k, fn) { workspaces.set(k, fn(workspaces.get(k))) },
+            async delete(k) { return workspaces.delete(k) },
+          }
+        },
+      }
     }
+    if (name === 'session_projcache') {
+      return {
+        table(t) {
+          if (t !== 'sessions') throw new Error('no table ' + t)
+          return {
+            get: (k) => projcacheRecords.get(k),
+            async delete(k) {
+              const had = projcacheRecords.has(k)
+              projcacheRecords.delete(k)
+              if (had) projcacheDeletes.push(k)
+              return had
+            },
+          }
+        },
+      }
+    }
+    return undefined
   },
 }
 
-// A session that the Host still holds idle (live but not running) exercises the
-// hide-the-remnant path; everything else behaves as "no live agent".
-const LIVE = 'session-22222222-2222-4222-8222-222222222222'
+// ---- Host session store mock --------------------------------------------
+// `resident` models ctx.sessions — the live in-memory store the sidebar list
+// unions into. `unloadSupported=false` models a DSH build without the internal
+// detach primitive, so the degraded path can be exercised.
+const resident = new Map()
+const unloadCalls = []
+let unloadSupported = true
+const sessions = {
+  get: (id) => resident.get(id),
+  list: () => [...resident.values()],
+  liveEntryFor(session) {
+    for (const [id, s] of resident) if (s === session) return { id, session }
+    throw new Error(`session "${session?.id}" is not live in this store`)
+  },
+  detachEntered(entry) {
+    resident.delete(entry.id)
+    unloadCalls.push(entry.id)
+  },
+}
+const strippedSessions = { get: sessions.get, list: sessions.list }
+
+// A session the Host still holds idle (live but not running) exercises the
+// unload path; everything else behaves as "no live agent".
 const idleSnapshot = { running: false, pendingInteraction: null }
 const agents = {
-  get: (id) => (id === LIVE ? { session: { getSnapshot: () => idleSnapshot } } : undefined),
+  get: (id) => (id === LIVE || id === DEGRADED ? { session: { getSnapshot: () => idleSnapshot } } : undefined),
 }
 
 let captured = null
 const ctx = {
-  get: (key) => ({ webServer: { register(route) { captured = route } }, connection: undefined, storageDomain, agents }[key]),
-  storageDomain, agents,
+  get: (key) => ({
+    webServer: { register(route) { captured = route } },
+    connection: undefined,
+    storageDomain,
+    agents,
+    sessions: unloadSupported ? sessions : strippedSessions,
+  }[key]),
+  storageDomain,
+  agents,
 }
 
 await import('../index.js').then(async (mod) => {
   mod.apply(ctx)
 })
 
-function makeRes() {
-  return new Promise((resolveRes) => {
-    const res = {
-      statusCode: 0, headers: {},
-      setHeader(k, v) { this.headers[k] = v },
-      end(body) { resolveRes({ status: this.statusCode, body: body && JSON.parse(body) }) },
-    }
-    resolveRes.__res = res
-  })
-}
+// `apply` fires the startup self-heal without awaiting it, and that self-heal
+// legitimately drops archived/pinned ids whose session directory does not
+// exist — this fake home only holds a few. Let it settle so every snapshot
+// below is stable.
+await new Promise((resolve) => setTimeout(resolve, 50))
 
-// Slight dance: handler calls res methods synchronously; wrap into promise.
 function call(method, url, bodyObj) {
   return new Promise(async (resolveRes) => {
     const chunks = bodyObj ? [Buffer.from(JSON.stringify(bodyObj))] : []
@@ -87,47 +164,82 @@ function call(method, url, bodyObj) {
   })
 }
 
+const checks = []
+const check = (label, ok, detail) => {
+  checks.push({ label, ok, detail })
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail === undefined ? '' : `  (${detail})`}`)
+}
+
+/** Registry writes replace the record object, so always re-read from the map. */
+const attachToWorkspace = (id, index = 0) => {
+  const row = [...workspaces.values()][index]
+  row.sessionIds = [...row.sessionIds, id]
+}
+
+// ---- 1. cold session: no store, no archive marker ------------------------
 const before = globalState.archivedSessionIds.length
 const st = await call('GET', '/_dsh-session-clean/status?sessionId=' + TARGET)
-console.log('status →', JSON.stringify(st.body))
+check('status reports busy=false and resident=false', st.body?.busy === false && st.body?.resident === false, JSON.stringify(st.body))
 
 const del = await call('POST', '/_dsh-session-clean/delete', { sessionId: TARGET })
-console.log('delete →', JSON.stringify({ status: del.status, ok: del.body?.ok, removed: del.body?.removed }))
+check('cold delete succeeds', del.status === 200 && del.body?.ok === true, `status=${del.status}`)
+check('cold delete is not "live" and not "unloaded"', del.body?.live === false && del.body?.unloaded === false)
+check('cold delete drops the id from the archive set and adds nothing',
+  !globalState.archivedSessionIds.includes(TARGET) && globalState.archivedSessionIds.length <= before,
+  `${before}→${globalState.archivedSessionIds.length}`)
+check('cold delete calls no unload', unloadCalls.length === 0)
+check('projcache domain row deleted by full session id', projcacheDeletes.includes(TARGET), `deletes=[${projcacheDeletes.join(',')}]`)
+check('projcache backing file removed',
+  !existsSync(join(FAKE_HOME, 'storages', 'session_projcache', 'sessions', `${TARGET}.json`)))
+check('session payload directory removed', !existsSync(join(FAKE_HOME, 'sessions', 'ws-one', TARGET)))
+check('session spill directory removed', !existsSync(join(FAKE_TMP, 'dsh-spill-abc123', spillDirName(TARGET))))
+check('spill root and non-session siblings survive',
+  existsSync(join(FAKE_TMP, 'dsh-spill-abc123', 'session-backup', 'keep.txt')))
+check('foreign dsh-spill-* shapes are never swept',
+  existsSync(join(FAKE_TMP, 'dsh-spill-test-fixture', spillDirName(TARGET), 'keep.txt')))
+check('unrelated session untouched',
+  existsSync(join(FAKE_HOME, 'sessions', 'ws-two', 'session-11111111-1111-4111-8111-111111111111', 'session.v4.jsonl.zstd')))
+check('workspace row cleaned', ![...workspaces.values()].some((w) => w.sessionIds.includes(TARGET)))
 
-const stillInWorkspace = [...workspaces.values()].some((w) => w.sessionIds.includes(TARGET))
-console.log('archived set:', before, '→', globalState.archivedSessionIds.length,
-  '| still listed in a workspace:', stillInWorkspace,
-  '| pinned untouched:', globalState.pinnedSessionIds.length)
-
-const busy = await call('GET', '/_dsh-session-clean/status?sessionId=session-00000000-0000-4000-8000-000000000000')
-console.log('status(unknown id) →', JSON.stringify(busy.body))
-
-const bad = await call('POST', '/_dsh-session-clean/delete', { sessionId: 'rm -rf /' })
-console.log('delete(bad id) →', bad.status)
-
-// File assertions: the target's durable dir and cache entry are gone, the
-// unrelated session in another workspace survives.
-const targetGone =
-  !existsSync(join(FAKE_HOME, 'sessions', 'ws-one', TARGET)) &&
-  !existsSync(join(FAKE_HOME, 'storages', 'session_projcache', 'sessions', `${TARGET.slice('session-'.length)}.json`))
-const survivorAlive = existsSync(
-  join(FAKE_HOME, 'sessions', 'ws-two', 'session-11111111-1111-4111-8111-111111111111', 'session.v4.jsonl.zstd'),
-)
-console.log('target payload erased:', targetGone, '| unrelated session intact:', survivorAlive)
-
-// Live-session branch: the Host still holds this one idle, so the plugin must
-// also hide the remnant by marking it archived (the default view hides those).
-const liveRow = [...workspaces.values()][0]
-liveRow.sessionIds.push(LIVE)
+// ---- 2. resident session with the unload primitive: REAL unload -----------
+resident.set(LIVE, { id: LIVE, getSnapshot: () => idleSnapshot })
+attachToWorkspace(LIVE)
 mkdirSync(join(FAKE_HOME, 'sessions', 'ws-two', LIVE), { recursive: true })
 writeFileSync(join(FAKE_HOME, 'sessions', 'ws-two', LIVE, 'session.v4.jsonl.zstd'), 'live')
+const beforeLive = globalState.archivedSessionIds.length
 
 const liveDel = await call('POST', '/_dsh-session-clean/delete', { sessionId: LIVE })
-console.log('delete(live session) →', JSON.stringify({ status: liveDel.status, live: liveDel.body?.live, hidden: liveDel.body?.hidden }))
-const liveHidden = globalState.archivedSessionIds.includes(LIVE)
-const liveGone = !existsSync(join(FAKE_HOME, 'sessions', 'ws-two', LIVE))
-const liveStillInWorkspace = [...workspaces.values()].some((w) => w.sessionIds.includes(LIVE))
-console.log('live remnant hidden:', liveHidden, '| payload erased:', liveGone, '| workspace row cleaned:', !liveStillInWorkspace)
+check('resident delete reports unloaded=true', liveDel.body?.unloaded === true, `detail=${liveDel.body?.unloadDetail}`)
+check('resident delete reports live=false after unloading', liveDel.body?.live === false)
+check('resident delete writes NO archive marker', !globalState.archivedSessionIds.includes(LIVE) && globalState.archivedSessionIds.length === beforeLive)
+check('unload went through the framework detach primitive', unloadCalls.includes(LIVE))
+check('store no longer holds the session', resident.has(LIVE) === false)
+check('resident payload + cache erased',
+  !existsSync(join(FAKE_HOME, 'sessions', 'ws-two', LIVE)) && projcacheDeletes.includes(LIVE))
+
+// ---- 3. resident session WITHOUT the primitive: honest degradation --------
+unloadSupported = false
+resident.set(DEGRADED, { id: DEGRADED, getSnapshot: () => idleSnapshot })
+attachToWorkspace(DEGRADED)
+mkdirSync(join(FAKE_HOME, 'sessions', 'ws-two', DEGRADED), { recursive: true })
+writeFileSync(join(FAKE_HOME, 'sessions', 'ws-two', DEGRADED, 'session.v4.jsonl.zstd'), 'degraded')
+const beforeDegraded = globalState.archivedSessionIds.length
+
+const degDel = await call('POST', '/_dsh-session-clean/delete', { sessionId: DEGRADED })
+check('degraded delete reports unloaded=false', degDel.body?.unloaded === false, `detail=${degDel.body?.unloadDetail}`)
+check('degraded delete reports live=true and hidden=true', degDel.body?.live === true && degDel.body?.hidden === true)
+check('degraded delete writes the archive marker as its last resort',
+  globalState.archivedSessionIds.includes(DEGRADED) && globalState.archivedSessionIds.length === beforeDegraded + 1)
+check('degraded delete still erases payload + cache',
+  !existsSync(join(FAKE_HOME, 'sessions', 'ws-two', DEGRADED)) && projcacheDeletes.includes(DEGRADED))
+
+// ---- 4. guards -----------------------------------------------------------
+const busy = await call('GET', '/_dsh-session-clean/status?sessionId=session-00000000-0000-4000-8000-000000000000')
+check('unknown id probes clean', busy.body?.busy === false, JSON.stringify(busy.body))
+const bad = await call('POST', '/_dsh-session-clean/delete', { sessionId: 'rm -rf /' })
+check('malformed id rejected with 400', bad.status === 400, `status=${bad.status}`)
 
 rmSync(FAKE_HOME, { recursive: true, force: true })
-process.exitCode = 0
+const failed = checks.filter((c) => !c.ok)
+console.log(`\n${checks.length - failed.length}/${checks.length} checks passed`)
+process.exitCode = failed.length === 0 ? 0 : 1
