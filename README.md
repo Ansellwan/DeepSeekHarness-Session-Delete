@@ -69,7 +69,7 @@ dsh plugin --profile desktop remove dsh-session-clean
 ### Notes & limits
 
 - Deletion is **irreversible** — unlike archive, there is no undo.
-- Deleting a session that is **open in the window**: its transcript, registry entries and caches are removed immediately, but the Host keeps the loaded session in memory until DSH restarts (DSH exposes no session-unload API), so the window may still list it under “Ungrouped”. The toast tells you; after a restart it is gone for good.
+- Deleting a session that is **open in the window**: its transcript, registry entries and caches are removed immediately, and the row disappears from the default list right away. DSH keeps the loaded session in memory until the app restarts (no unload API exists on either face), so the hide-marker is pruned automatically on the next start — after a restart it is gone for good.
 - Deleting the session you are currently viewing works, but switching to another session first avoids a transient blank conversation view.
 - If the optional `@deepseek-ai/dsh-session-query-sqlite` search backend is enabled, deleted sessions may linger in the FTS index until it rebuilds; the default install does not enable it.
 
@@ -142,7 +142,7 @@ dsh plugin --profile desktop remove dsh-session-clean
 ### 边界与说明
 
 - 删除**不可撤销**（这是它与「归档」的本质区别）。确认框会再次警示。
-- 删除**当前窗口里打开的**会话：对话记录、注册表条目与缓存会立即清除，但宿主会把已加载的会话留在内存里直到重启（DSH 没有提供卸载会话的 API），因此窗口里可能仍在「未分组」下显示它。Toast 会明确告知；**重启 DSH 后它就彻底消失**。
+- 删除**当前窗口里打开的**会话：对话记录、注册表条目与缓存会立即清除，**该行也会马上从默认列表消失**。但宿主会把已加载的会话留在内存里直到重启（DSH 两侧都没有卸载会话的 API），因此插件会写一个临时隐藏标记，并在**下次启动时自动清理**——重启后彻底消失。
 - 删除**当前正在查看**的会话在技术上可行，但建议先切换到别的会话再删，避免对话视图短暂失焦。
 - 若启用了 `@deepseek-ai/dsh-session-query-sqlite`（SQLite 全文搜索索引），被删会话的索引条目可能残留至该索引下次重建；默认安装未启用该后端，不受影响。
 

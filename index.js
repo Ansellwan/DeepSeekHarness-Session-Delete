@@ -117,6 +117,64 @@ function probeBusy(ctx, sessionId) {
 }
 
 /**
+ * DSH keeps a loaded session in its in-memory store (`ctx.sessions`) and exposes
+ * no unload API on either face (host `ctx.sessions` has no remove; the client's
+ * `uiWorkspace` only archives). So a session that is open in the window would
+ * keep showing under “Ungrouped” even after its durable state is gone. Marking
+ * that id as archived makes the DEFAULT sidebar view (which hides archived rows)
+ * drop it immediately; the marker is pruned at the next plugin start, once the
+ * memory-only session is gone.
+ * @param {object} ctx - the Host plugin context.
+ * @param {string} sessionId - the session to hide from the default list.
+ * @returns {Promise<boolean>} whether the archived marker was written.
+ */
+async function hideLiveRemnant(ctx, sessionId) {
+  const facility = ctx.get?.('storageDomain') ?? ctx.storageDomain
+  const domain = facility?.get?.('workspace')
+  if (!domain?.global) return false
+  const state = { ...domain.global.get() }
+  const archived = state.archivedSessionIds ?? []
+  if (archived.includes(sessionId)) return false
+  state.archivedSessionIds = [sessionId, ...archived]
+  await domain.global.set(state)
+  return true
+}
+
+/**
+ * Drop archived/pinned ids whose session payload no longer exists anywhere.
+ * These are dangles left by deleting a session that was still loaded in memory
+ * (see {@link hideLiveRemnant}); a session id without a directory can never be
+ * opened again, so the marker is pure noise.
+ * @param {object} ctx - the Host plugin context.
+ * @returns {Promise<number>} how many dangling ids were dropped.
+ */
+async function pruneDanglingIds(ctx) {
+  const facility = ctx.get?.('storageDomain') ?? ctx.storageDomain
+  const domain = facility?.get?.('workspace')
+  if (!domain?.global) return 0
+  const state = { ...domain.global.get() }
+  const archived = state.archivedSessionIds ?? []
+  const pinned = state.pinnedSessionIds ?? []
+  if (archived.length === 0 && pinned.length === 0) return 0
+
+  const root = sessionsRoot()
+  if (!existsSync(root)) return 0
+  const { readdir } = await import('node:fs/promises')
+  const workspaceDirs = await readdir(root)
+  const alive = (id) => workspaceDirs.some((dir) => existsSync(join(root, dir, id)))
+
+  const nextArchived = archived.filter(alive)
+  const nextPinned = pinned.filter(alive)
+  const dropped = archived.length - nextArchived.length + (pinned.length - nextPinned.length)
+  if (dropped === 0) return 0
+  state.archivedSessionIds = nextArchived
+  state.pinnedSessionIds = nextPinned
+  await domain.global.set(state)
+  await opLog(`启动清理: 移除 ${dropped} 个悬空标记（archived ${archived.length}→${nextArchived.length}, pinned ${pinned.length}→${nextPinned.length}）`)
+  return dropped
+}
+
+/**
  * Remove the session from the workspace registry through the live domain
  * handle: global archive/pin sets plus every workspace's `sessionIds` row.
  * Writes emit `domain/changed`, so the open sidebar updates itself.
@@ -335,10 +393,19 @@ export function apply(ctx) {
           }
           await opLog(`已删除会话 ${sessionId}，文件 ${removedPaths.length} 处: ${removedPaths.join(' | ')}`)
           log(`已删除会话 ${sessionId}（工作区：${registry.workspaces.join('、') || '未知'}，文件 ${removedPaths.length} 处）`)
-          // A session the Host still holds in its in-memory store (`ctx.sessions`
-          // exposes no remove API) keeps showing in the open window until the app
-          // restarts; the durable state is already gone, so say so out loud.
-          sendJson(res, 200, { ok: true, ...registry, removed: removedPaths, live: busy.detail === 'agent-idle' })
+          // A live session stays in the Host's memory store (no unload API), so
+          // hide its row from the default view until a restart frees it.
+          const live = busy.detail === 'agent-idle'
+          let hidden = false
+          if (live) {
+            try {
+              hidden = await hideLiveRemnant(ctx, sessionId)
+              await opLog(`活会话残留处理: 已加入归档集以从默认视图隐藏=${hidden}`)
+            } catch (error) {
+              await opLog(`活会话残留隐藏失败: ${error?.message ?? error}`)
+            }
+          }
+          sendJson(res, 200, { ok: true, ...registry, removed: removedPaths, live, hidden })
           return
         }
         await opLog(`404 ${req.method} ${req.url}`)
@@ -354,4 +421,6 @@ export function apply(ctx) {
 
   log(`删除接口就绪：${ROUTE_PREFIX}/status 与 ${ROUTE_PREFIX}/delete`)
   void opLog(`plugin activated (session-delete), routes on ${ROUTE_PREFIX}`)
+  // Self-heal markers left by deleting a session that was still loaded in memory.
+  void pruneDanglingIds(ctx).catch((error) => opLog(`启动清理失败: ${error?.message ?? error}`))
 }

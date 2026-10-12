@@ -23,7 +23,7 @@ window.__ModuleLoader__.load({
   factory(require) {
     // Human-synced copy of package.json#version: client bundles cannot read
     // package.json at runtime. Bump together with `npm version`.
-    const VERSION = '1.0.7'
+    const VERSION = '1.0.8'
 
     const React = require('react')
     const h = React.createElement
@@ -40,7 +40,7 @@ window.__ModuleLoader__.load({
         cancel: '取消',
         deleting: '正在删除…',
         done: '会话已删除',
-        doneLive: '会话已删除（此窗口仍显示该会话，重启 DSH 后彻底消失）',
+        doneLive: '会话已删除（已从列表隐藏；重启 DSH 后彻底清除）',
         failed: '删除失败：{message}',
       },
       en: {
@@ -53,7 +53,7 @@ window.__ModuleLoader__.load({
         cancel: 'Cancel',
         deleting: 'Deleting…',
         done: 'Session deleted',
-        doneLive: 'Session deleted (this window still lists it until DSH restarts)',
+        doneLive: 'Session deleted (hidden from the list; fully cleared after a DSH restart)',
         failed: 'Delete failed: {message}',
       },
     }

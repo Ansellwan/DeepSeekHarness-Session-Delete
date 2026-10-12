@@ -44,7 +44,13 @@ const storageDomain = {
   },
 }
 
-const agents = { get: (id) => (id === TARGET ? undefined : undefined) }
+// A session that the Host still holds idle (live but not running) exercises the
+// hide-the-remnant path; everything else behaves as "no live agent".
+const LIVE = 'session-22222222-2222-4222-8222-222222222222'
+const idleSnapshot = { running: false, pendingInteraction: null }
+const agents = {
+  get: (id) => (id === LIVE ? { session: { getSnapshot: () => idleSnapshot } } : undefined),
+}
 
 let captured = null
 const ctx = {
@@ -108,6 +114,20 @@ const survivorAlive = existsSync(
   join(FAKE_HOME, 'sessions', 'ws-two', 'session-11111111-1111-4111-8111-111111111111', 'session.v4.jsonl.zstd'),
 )
 console.log('target payload erased:', targetGone, '| unrelated session intact:', survivorAlive)
+
+// Live-session branch: the Host still holds this one idle, so the plugin must
+// also hide the remnant by marking it archived (the default view hides those).
+const liveRow = [...workspaces.values()][0]
+liveRow.sessionIds.push(LIVE)
+mkdirSync(join(FAKE_HOME, 'sessions', 'ws-two', LIVE), { recursive: true })
+writeFileSync(join(FAKE_HOME, 'sessions', 'ws-two', LIVE, 'session.v4.jsonl.zstd'), 'live')
+
+const liveDel = await call('POST', '/_dsh-session-clean/delete', { sessionId: LIVE })
+console.log('delete(live session) →', JSON.stringify({ status: liveDel.status, live: liveDel.body?.live, hidden: liveDel.body?.hidden }))
+const liveHidden = globalState.archivedSessionIds.includes(LIVE)
+const liveGone = !existsSync(join(FAKE_HOME, 'sessions', 'ws-two', LIVE))
+const liveStillInWorkspace = [...workspaces.values()].some((w) => w.sessionIds.includes(LIVE))
+console.log('live remnant hidden:', liveHidden, '| payload erased:', liveGone, '| workspace row cleaned:', !liveStillInWorkspace)
 
 rmSync(FAKE_HOME, { recursive: true, force: true })
 process.exitCode = 0
