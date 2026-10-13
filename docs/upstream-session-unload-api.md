@@ -47,6 +47,6 @@ DSH 目前**没有任何公开途径**让一个会话从宿主内存里消失；
 
 ## 第三方插件当前的临时做法（可作对照）
 
-`dsh-session-clean@1.1.0` 在探测到 `ctx.sessions.liveEntryFor(session).detach()` 这类原型方法存在时调用它（即框架自己的 `store.delete` + `attachments.delete` + `emit session/disposed`），从而让侧栏那一行被真正摘掉；删投影缓存时走域的真表名 `sessions`（键为完整会话 id）而不是只删文件；并删除 spill 目录。任一步探测失败时，它会退化为「冻结 + 隐藏」并把 `unloaded:false` 如实返回给界面。
+`dsh-session-clean@1.1.2`（首个真卸载实现为 1.1.0）在探测到 `ctx.sessions.liveEntryFor(session).detach()` 这类原型方法存在时调用它（即框架自己的 `store.delete` + `attachments.delete` + `emit session/disposed`），从而让侧栏那一行被真正摘掉；删投影缓存时走域的真表名 `sessions`（键为完整会话 id）而不是只删文件；并删除 spill 目录。任一步探测失败时，它会退化为「冻结 + 隐藏」并把 `unloaded:false` 如实返回给界面。
 
 **只要官方提供上述 API，这些内部伸手与降级文案都可以立即删除。**

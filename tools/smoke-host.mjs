@@ -3,7 +3,7 @@
 // route. All file operations land in a throwaway temp dir, never the real DSH
 // home.
 //
-// Four behaviours are pinned here, because they are the ones that were wrong
+// Five behaviours are pinned here, because they are the ones that were wrong
 // before 1.1.0:
 //   1. a resident session is unloaded through the framework's own detach
 //      primitive, and the archived marker is NOT written for it;
@@ -11,7 +11,10 @@
 //      report, instead of claiming a clean deletion;
 //   3. the projection cache is deleted through its real domain table
 //      (`sessions`, keyed by the full session id), not through guessed names;
-//   4. a cold session touches neither the store nor the archive set.
+//   4. a cold session touches neither the store nor the archive set;
+//   5. the session's spill directory is removed by its exact backend naming
+//      rules (session hash dir only — roots, siblings and foreign
+//      `dsh-spill-*` shapes survive).
 import { readFileSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'

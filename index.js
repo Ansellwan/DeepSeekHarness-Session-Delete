@@ -5,8 +5,9 @@
  * one. This plugin adds exactly that, behind a small private HTTP surface the
  * client half calls:
  *
- *   GET  /_dsh-session-clean/status?sessionId=…   → { busy, detail }
- *   POST /_dsh-session-clean/delete {sessionId}   → { ok, removed: […] }
+ *   GET  /_dsh-session-clean/status?sessionId=…   → { busy, detail, resident }
+ *   POST /_dsh-session-clean/delete {sessionId}   → { ok, workspaces, archived,
+ *       pinned, removed, live, unloaded, unloadDetail, hidden }
  *
  * Deletion is a hard contract, not a UI nicety, and it proceeds in order:
  *
