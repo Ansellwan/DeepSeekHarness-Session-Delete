@@ -7,6 +7,7 @@ function get(hostname, path, accept = 'text/html,application/json') {
     https
       .get({ hostname, path, headers: { Accept: accept, 'User-Agent': 'Mozilla/5.0 dsh-session-clean' } }, (r) => {
         let d = ''
+        r.setEncoding('utf8')
         r.on('data', (c) => (d += c))
         r.on('end', () => resolve({ status: r.statusCode, ct: r.headers['content-type'], body: d }))
       })

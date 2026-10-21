@@ -20,6 +20,7 @@ function call(path) {
     }
     const req = https.get(opts, (r) => {
       let d = ''
+      r.setEncoding('utf8')
       r.on('data', (c) => (d += c))
       r.on('end', () => resolve({ status: r.statusCode, body: d }))
     })
@@ -41,6 +42,7 @@ function call(path) {
       const opts = { hostname: 'registry.npmjs.org', path, headers: { Accept: 'application/vnd.npm.install-v1+json', 'User-Agent': 'dsh-session-clean' } }
       const req = https.get(opts, (r) => {
         let d = ''
+        r.setEncoding('utf8')
         r.on('data', (c) => (d += c))
         r.on('end', () => resolve(JSON.parse(d)))
       })

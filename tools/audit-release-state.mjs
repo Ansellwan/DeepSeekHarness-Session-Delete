@@ -21,6 +21,7 @@ function call(path) {
         },
         (r) => {
           let d = ''
+          r.setEncoding('utf8')
           r.on('data', (c) => (d += c))
           r.on('end', () => {
             try {
@@ -79,6 +80,7 @@ const npmDoc = await new Promise((resolve, reject) => {
       { hostname: 'registry.npmjs.org', path: '/dsh-session-clean', headers: { Accept: 'application/json', 'User-Agent': 'dsh-session-clean' } },
       (r) => {
         let d = ''
+        r.setEncoding('utf8')
         r.on('data', (c) => (d += c))
         r.on('end', () => resolve(JSON.parse(d)))
       },

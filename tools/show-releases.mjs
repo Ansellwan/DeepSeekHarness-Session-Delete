@@ -7,6 +7,7 @@ const get = (p) =>
     https
       .get({ hostname: 'api.github.com', path: p, headers: { Authorization: `token ${TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'x' } }, (r) => {
         let d = ''
+        r.setEncoding('utf8')
         r.on('data', (c) => (d += c))
         r.on('end', () => res(JSON.parse(d)))
       })

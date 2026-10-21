@@ -15,6 +15,7 @@ const opts = {
 https
   .get(opts, (r) => {
     let d = ''
+    r.setEncoding('utf8')
     r.on('data', (c) => (d += c))
     r.on('end', () => {
       const j = JSON.parse(d)

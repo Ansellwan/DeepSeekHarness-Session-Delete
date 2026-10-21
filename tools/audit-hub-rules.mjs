@@ -10,6 +10,7 @@ function call(path) {
         { hostname: 'api.github.com', path, headers: { Authorization: `token ${TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'dsh-session-clean' } },
         (r) => {
           let d = ''
+          r.setEncoding('utf8')
           r.on('data', (c) => (d += c))
           r.on('end', () => {
             try { resolve({ status: r.statusCode, j: JSON.parse(d) }) } catch { resolve({ status: r.statusCode, raw: d }) }

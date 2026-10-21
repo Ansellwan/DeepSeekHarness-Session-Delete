@@ -23,6 +23,7 @@ function call(method, path, body) {
     }
     const req = https.request(opts, (r) => {
       let d = ''
+      r.setEncoding('utf8')
       r.on('data', (c) => (d += c))
       r.on('end', () => resolve({ status: r.statusCode, body: d }))
     })
