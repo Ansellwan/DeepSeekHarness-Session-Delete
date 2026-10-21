@@ -23,7 +23,7 @@ window.__ModuleLoader__.load({
   factory(require) {
     // Human-synced copy of package.json#version: client bundles cannot read
     // package.json at runtime. Bump together with `npm version`.
-    const VERSION = '1.6.1'
+    const VERSION = '1.6.2'
 
     const React = require('react')
     const h = React.createElement
@@ -49,6 +49,7 @@ window.__ModuleLoader__.load({
         cleanupDesc: '选择一个分组，删除它下面的全部会话。此操作不可恢复，运行中的会话会被整批拦下。',
         cleanupEmpty: '还没有任何带会话的分组',
         cleanupCount: '{n} 个会话',
+        cleanupCountTotal: '共 {n} 个会话',
         cleanupBusyTag: '{n} 个运行中',
         cleanupAction: '清空',
         cleanupConfirmTitle: '清空「{title}」的全部会话？',
@@ -59,8 +60,7 @@ window.__ModuleLoader__.load({
         cleanupPartial: '已删除 {n} 个，失败 {m} 个',
         cleanupClose: '关闭',
         cleanupActionRemove: '清空并移除分组',
-        cleanupSplitNote: '官方「删除工作区」只移除分组，会话会落到「未分组」。\n要连会话一起删除，用「清空并移除分组」。',
-        cleanupRemoveHint: '先删除这些会话，再移除分组。\n官方「删除工作区」只移除分组，会话会留在「未分组」。',
+        cleanupButtonHints: '「永久删除」：只删会话，分组保留\n「清空并移除分组」：会话和分组一起删',
         cleanupRemoveDone: '已清空并移除「{title}」',
         cleanupRemoveUnavailable: '当前 DSH 版本不支持移除分组，会话已清空。',
         cleanupUngrouped: '未分组',
@@ -87,6 +87,7 @@ window.__ModuleLoader__.load({
         cleanupDesc: 'Pick a workspace and delete every session it owns. This cannot be undone; a batch containing any running session is refused as a whole.',
         cleanupEmpty: 'No workspace has any session yet',
         cleanupCount: '{n} sessions',
+        cleanupCountTotal: '{n} sessions in total',
         cleanupBusyTag: '{n} running',
         cleanupAction: 'Clean',
         cleanupConfirmTitle: 'Delete every session in “{title}”?',
@@ -97,8 +98,7 @@ window.__ModuleLoader__.load({
         cleanupPartial: 'Deleted {n}, {m} failed',
         cleanupClose: 'Close',
         cleanupActionRemove: 'Clean and remove group',
-        cleanupSplitNote: 'The shipped “Delete workspace” only unregisters the group; its sessions fall into “Ungrouped”.\nTo delete the sessions too, use “Clean and remove group”.',
-        cleanupRemoveHint: 'Deletes these sessions first, then unregisters the group.\nThe shipped “Delete workspace” only unregisters, so its sessions stay in “Ungrouped”.',
+        cleanupButtonHints: '“Delete permanently”: sessions only, the group stays.\n“Clean and remove group”: sessions and the group go together.',
         cleanupRemoveDone: 'Cleaned and removed “{title}”',
         cleanupRemoveUnavailable: 'This DSH build cannot unregister a workspace; the sessions were cleaned.',
         cleanupUngrouped: 'Ungrouped',
@@ -116,29 +116,29 @@ window.__ModuleLoader__.load({
       style.id = STYLE_ID
       style.textContent = `
 .dsh-sd-overlay { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); }
-.dsh-sd-dialog { width: min(400px, calc(100vw - 48px)); border-radius: 12px; border: .5px solid var(--dsw-alias-border-l2, #333); background: var(--dsw-alias-bg-layer-2, #1f1f1f); color: var(--dsw-alias-label-primary, #eee); padding: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.4); }
-.dsh-sd-title { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
-.dsh-sd-desc { margin: 0 0 14px; font-size: 12.5px; line-height: 19px; color: var(--dsw-alias-label-secondary, #aaa); word-break: break-all; }
-.dsh-sd-note { margin: -6px 0 14px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary, #999); white-space: pre-line; }
-.dsh-sd-warn { margin: 0 0 14px; font-size: 12.5px; color: var(--dsw-alias-state-error-primary, #f85149); }
+.dsh-sd-dialog { width: min(440px, calc(100vw - 48px)); border-radius: 12px; border: .5px solid var(--dsw-alias-border-l2, #333); background: var(--dsw-alias-bg-layer-2, #1f1f1f); color: var(--dsw-alias-label-primary, #eee); padding: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+.dsh-sd-title { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+.dsh-sd-desc { margin: 0 0 14px; font-size: 15.5px; line-height: 23px; color: var(--dsw-alias-label-secondary, #aaa); word-break: break-all; }
+.dsh-sd-note { margin: -6px 0 14px; font-size: 15px; line-height: 21px; color: var(--dsw-alias-label-secondary, #999); white-space: pre-line; }
+.dsh-sd-warn { margin: 0 0 14px; font-size: 15.5px; color: var(--dsw-alias-state-error-primary, #f85149); }
 .dsh-sd-footer { display: flex; justify-content: flex-end; gap: 8px; }
-.dsh-sd-btn { padding: 6px 14px; border-radius: 8px; border: .5px solid var(--dsw-alias-border-l2, #444); background: transparent; color: inherit; font: inherit; font-size: 12.5px; cursor: pointer; }
+.dsh-sd-btn { padding: 7px 16px; border-radius: 8px; border: .5px solid var(--dsw-alias-border-l2, #444); background: transparent; color: inherit; font: inherit; font-size: 15.5px; cursor: pointer; }
 .dsh-sd-btn:disabled { opacity: .55; cursor: default; }
 .dsh-sd-btn[data-danger="true"] { border-color: transparent; background: var(--dsw-alias-state-error-primary, #d1242f); color: #fff; }
-.dsh-sd-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 10000; padding: 8px 16px; border-radius: 999px; background: var(--dsw-alias-bg-layer-2, #1f1f1f); border: .5px solid var(--dsw-alias-border-l2, #333); color: var(--dsw-alias-label-primary, #eee); font-size: 12.5px; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+.dsh-sd-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 10000; padding: 10px 18px; border-radius: 999px; background: var(--dsw-alias-bg-layer-2, #1f1f1f); border: .5px solid var(--dsw-alias-border-l2, #333); color: var(--dsw-alias-label-primary, #eee); font-size: 15.5px; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
 .dsh-sd-toast[data-ok="false"] { color: var(--dsw-alias-state-error-primary, #f85149); }
-.dsh-sd-foot { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--dsw-alias-label-secondary, #bbb); font: inherit; font-size: 12.5px; cursor: pointer; }
+.dsh-sd-foot { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--dsw-alias-label-secondary, #bbb); font: inherit; font-size: 14.5px; cursor: pointer; }
 .dsh-sd-foot:hover { background: var(--dsw-alias-bg-layer-1, #2a2a2a); color: var(--dsw-alias-label-primary, #eee); }
-.dsh-sd-panel { width: min(460px, calc(100vw - 48px)); max-height: min(70vh, 560px); display: flex; flex-direction: column; }
+.dsh-sd-panel { width: min(520px, calc(100vw - 48px)); max-height: min(70vh, 560px); display: flex; flex-direction: column; }
 .dsh-sd-groups { overflow: auto; margin: 4px 0 12px; border-top: .5px solid var(--dsw-alias-border-l2, #333); }
 .dsh-sd-group { display: flex; align-items: center; gap: 10px; padding: 9px 2px; border-bottom: .5px solid var(--dsw-alias-border-l2, #2c2c2c); }
 .dsh-sd-group-main { min-width: 0; flex: 1; }
-.dsh-sd-group-title { font-size: 13px; color: var(--dsw-alias-label-primary, #eee); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dsh-sd-group-meta { font-size: 11.5px; color: var(--dsw-alias-label-secondary, #999); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dsh-sd-count { font-size: 12px; color: var(--dsw-alias-label-secondary, #aaa); white-space: nowrap; }
-.dsh-sd-mini { padding: 4px 10px; border-radius: 7px; border: .5px solid var(--dsw-alias-border-l2, #444); background: transparent; color: var(--dsw-alias-state-error-primary, #f85149); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.dsh-sd-group-title { font-size: 16px; color: var(--dsw-alias-label-primary, #eee); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsh-sd-group-meta { font-size: 14.5px; color: var(--dsw-alias-label-secondary, #999); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsh-sd-count { font-size: 15px; color: var(--dsw-alias-label-secondary, #aaa); white-space: nowrap; }
+.dsh-sd-mini { padding: 5px 12px; border-radius: 7px; border: .5px solid var(--dsw-alias-border-l2, #444); background: transparent; color: var(--dsw-alias-state-error-primary, #f85149); font: inherit; font-size: 15px; cursor: pointer; white-space: nowrap; }
 .dsh-sd-mini:disabled { opacity: .45; cursor: default; color: var(--dsw-alias-label-secondary, #888); }
-.dsh-sd-empty { padding: 14px 2px; color: var(--dsw-alias-label-secondary, #999); font-size: 12.5px; }
+.dsh-sd-empty { padding: 14px 2px; color: var(--dsw-alias-label-secondary, #999); font-size: 15.5px; }
 `
       document.head.appendChild(style)
     }
@@ -419,7 +419,7 @@ window.__ModuleLoader__.load({
     /** Minimal broom glyph; inline so no icon package is required. */
     function BroomIcon() {
       return h('svg', {
-        width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none',
+        width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none',
         'aria-hidden': true,
         style: { flex: 'none' },
       },
@@ -703,9 +703,6 @@ window.__ModuleLoader__.load({
               ? h(React.Fragment, null,
                 h('h2', { className: 'dsh-sd-title' }, t('cleanupTitle')),
                 h('p', { className: 'dsh-sd-desc' }, t('cleanupDesc')),
-                // The shipped group-row action is a different operation; say so
-                // here, before the user picks a group, not only in the dialog.
-                h('p', { className: 'dsh-sd-note' }, t('cleanupSplitNote')),
                 progress !== null ? h('p', { className: 'dsh-sd-note' }, t('cleanupWorking', progress)) : null,
                 error !== null ? h('p', { className: 'dsh-sd-warn' }, error) : null,
                 h('div', { className: 'dsh-sd-groups' },
@@ -720,7 +717,12 @@ window.__ModuleLoader__.load({
                           h('div', { className: 'dsh-sd-group-meta' }, workspace.path ?? ''),
                         ),
                         h('span', { className: 'dsh-sd-count' },
-                          t('cleanupCount', { n: workspace.visible ?? count }),
+                          // Hidden members are part of the batch the dialog
+                          // will delete, so spell out the total instead of
+                          // showing "0 sessions" for an archive-only group.
+                          (workspace.archived ?? 0) > 0
+                            ? t('cleanupCountTotal', { n: count })
+                            : t('cleanupCount', { n: workspace.visible ?? count }),
                           (workspace.archived ?? 0) > 0
                             ? ` · ${t('cleanupArchivedTag', { m: workspace.archived })}`
                             : '',
@@ -746,7 +748,9 @@ window.__ModuleLoader__.load({
                         h('div', { className: 'dsh-sd-group-meta' }, t('cleanupUngroupedHint')),
                       ),
                       h('span', { className: 'dsh-sd-count' },
-                        t('cleanupCount', { n: bridge.ungroupedVisible ?? ungroupedIds.length }),
+                        (bridge.ungroupedArchived ?? 0) > 0
+                          ? t('cleanupCountTotal', { n: ungroupedIds.length })
+                          : t('cleanupCount', { n: bridge.ungroupedVisible ?? ungroupedIds.length }),
                         (bridge.ungroupedArchived ?? 0) > 0
                           ? ` · ${t('cleanupArchivedTag', { m: bridge.ungroupedArchived })}`
                           : '',
@@ -791,7 +795,7 @@ window.__ModuleLoader__.load({
                 error !== null ? h('p', { className: 'dsh-sd-warn' }, error) : null,
                 target?.ungrouped === true
                   ? null
-                  : h('p', { className: 'dsh-sd-note' }, t('cleanupRemoveHint')),
+                  : h('p', { className: 'dsh-sd-note' }, t('cleanupButtonHints')),
                 h('div', { className: 'dsh-sd-footer' },
                   h('button', {
                     type: 'button', className: 'dsh-sd-btn', disabled: progress !== null,

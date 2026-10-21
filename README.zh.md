@@ -7,7 +7,7 @@
 
 DSH 有归档、重命名、分叉，却**没有删除会话**。这个插件在侧栏每个会话的 `⋯` 菜单里补上一项红色「删除会话」，点之前先弹确认框。删就是真删：不会给你留个"看起来删了、过两天又冒出来"的尾巴。
 
-![会话菜单中的「删除会话」](docs/demo.png) ![删除确认框](docs/demo-confirm.png) ![会话运行中，删除自动置灰](docs/demo-busy.png)
+![会话菜单中的「删除会话」](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo.png) ![删除确认框](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo-confirm.png) ![会话运行中，删除自动置灰](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo-busy.png)
 
 ## 安装
 
@@ -48,16 +48,16 @@ dsh plugin --profile desktop remove dsh-session-clean
 
 ## 清理整个分组
 
-清理一个旧项目，往往要把整组对话一条条删掉。侧栏底部的「清理分组」按钮替你一次做完：
+点侧栏底部的「清理分组」，选一个分组，点「清空」，整组会话一次性删掉。列表里还有一行「未分组」，装的是不属于任何分组的会话。
 
-1. 列出所有还有会话的分组，**外加一行「未分组」**——它装的是不属于任何分组的会话（删掉分组后遗留下来的、或者新建时没选分组的）
-2. 数字与侧栏看到的一致：若该分组还藏着已归档 / 子代理条目，会显示成"2 个会话 · 3 个不在列表"，明确告诉你它们存在、清空时也会一并删除，而不是给你一个对不上号的总数
-3. 点「清空」后只弹一次确认，确认框里写明确切数量（"永久删除该分组下的 N 个会话"），并同时提供「清空」（保留分组）与「清空并移除分组」（连分组一起注销）两个选择
-4. **组内只要有会话在运行，整批拒绝**——和单会话同一条铁律：只要有一个在回复或等审批/回答，一条都不删，并告诉你几个在忙；绝不偷偷跳过某个成员
-5. 执行时显示 `正在删除 i/N`，结束后汇总（"已删除 N 个"或"已删除 N 个，失败 M 个"）
-6. 如果主视图正在看的会话也在被删之列，界面会离开它：**切到同一个分组里的新会话**（清的是「未分组」时，切到第一个还存在的分组）
+![清理分组面板：选一个分组，点清空](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo-cleanup.png)
 
-分组本身会保留（DSH 把分组定义为"注册过的文件夹"，不是会话容器）：它会变成一个空分组，可以在里面新建会话，或用官方的「删除工作区」把分组移除。
+- 组里有会话正在跑（回复中、等你确认），这个分组就清不了，按钮是灰的
+- 已归档的会话也会一起删；行上写明「共 N 个会话 · M 个不在列表」，看到多少就删多少
+- 分组本身留着，只是变成空分组。想连分组一起删，用确认框里的「清空并移除分组」
+- 清理时会显示进度，结束告诉你删了几个；如果正在看的会话被删了，会自动切到同分组的新会话
+
+![清空确认框](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo-cleanup-confirm.png) ![清理完成](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo-cleanup-done.png)
 
 ### 两条“删分组”的路，故意分开
 

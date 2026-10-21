@@ -13,7 +13,7 @@
 
 DeepSeek Harness has archive, rename and fork — but no way to **delete** a conversation. This plugin adds the missing red **Delete session** row to every session's `⋯` menu, with a confirmation dialog in front of it. It deletes for real: no hidden leftovers that quietly come back.
 
-![Delete session in the session menu](docs/demo.png) ![Confirmation dialog](docs/demo-confirm.png) ![Greyed out while the session is busy](docs/demo-busy.png)
+![Delete session in the session menu](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo.png) ![Confirmation dialog](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo-confirm.png) ![Greyed out while the session is busy](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo-busy.png)
 
 ### Install
 
@@ -54,16 +54,16 @@ dsh plugin --profile desktop remove dsh-session-clean
 
 ### Cleaning a whole workspace
 
-Clearing out an old project usually means deleting every conversation in that group, one by one. The sidebar-foot **Clean workspace** button does it in one step:
+Click **Clean workspace** at the sidebar foot and pick a workspace — every session in it goes in one step. The list also has an **Ungrouped** row for sessions no workspace owns.
 
-1. It lists every workspace that still holds sessions, **plus an "Ungrouped" row** for sessions no workspace owns (the ones a deleted group leaves behind, or sessions started without picking a workspace).
-2. Counts match what you can actually see: a row says "2 sessions · 3 hidden" when its group also holds archived (or subagent) entries — you are told they exist and that a clean takes them too, instead of a number you cannot reconcile with the sidebar.
-3. Cleaning one asks for one confirmation that names the exact count ("permanently delete the N sessions in …"), and that dialog offers **Clean** (keep the group) or **Clean and remove group** (unregister it too).
-4. **Any running session refuses the whole batch.** The same rule as the single-session action, applied to a group: if one member is replying or waiting for approval/answer, nothing is deleted and you are told how many are busy — the plugin never silently skips a member.
-5. A progress line reports `deleting i/N`, then a summary ("deleted N", or "deleted N, M failed").
-6. If the conversation on screen was among the deleted ones, the view leaves it: you land in a **fresh session of that same workspace** (for the Ungrouped row, in the first remaining workspace).
+![The cleanup panel: pick a workspace, then Clean](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo-cleanup.png)
 
-The workspace group itself is kept (DSH treats a workspace as a registered folder, not a session container); it simply becomes an empty group you can start new sessions in, or remove with the shipped **Delete workspace** action.
+- If anything in that workspace is busy (replying, or waiting for your approval), the whole clean is refused and the button is greyed out.
+- Archived sessions go too; the row says "N sessions in total · M not in the list", so the count you see is the count that disappears.
+- The workspace itself is kept and simply becomes empty. To drop it as well, use **Clean and remove group** in the confirmation.
+- You get progress while it runs and a count when it ends. If you were viewing a session that got deleted, the view moves to a new session in the same workspace.
+
+![The confirmation](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo-cleanup-confirm.png) ![Finished](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo-cleanup-done.png)
 
 ### Two ways to get rid of a workspace — deliberately different
 
@@ -133,7 +133,7 @@ Until the DSH process exits, an empty session object stays in memory — DSH off
 
 DSH 有归档、重命名、分叉，却**没有删除会话**。这个插件在侧栏每个会话的 `⋯` 菜单里补上一项红色「删除会话」，点之前先弹确认框。删就是真删：不会给你留个"看起来删了、过两天又冒出来"的尾巴。
 
-![会话菜单中的「删除会话」](docs/demo.png) ![删除确认框](docs/demo-confirm.png) ![会话运行中，删除自动置灰](docs/demo-busy.png)
+![会话菜单中的「删除会话」](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo.png) ![删除确认框](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo-confirm.png) ![会话运行中，删除自动置灰](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo-busy.png)
 
 ### 安装
 
@@ -174,16 +174,16 @@ dsh plugin --profile desktop remove dsh-session-clean
 
 ### 清理整个分组
 
-清理一个旧项目，往往要把整组对话一条条删掉。侧栏底部的「清理分组」按钮替你一次做完：
+点侧栏底部的「清理分组」，选一个分组，点「清空」，整组会话一次性删掉。列表里还有一行「未分组」，装的是不属于任何分组的会话。
 
-1. 列出所有还有会话的分组，**外加一行「未分组」**——它装的是不属于任何分组的会话（删掉分组后遗留下来的、或者新建时没选分组的）
-2. 数字与侧栏看到的一致：若该分组还藏着已归档 / 子代理条目，会显示成"2 个会话 · 3 个不在列表"，明确告诉你它们存在、清空时也会一并删除，而不是给你一个对不上号的总数
-3. 点「清空」后只弹一次确认，确认框里写明确切数量（"永久删除该分组下的 N 个会话"），并同时提供「清空」（保留分组）与「清空并移除分组」（连分组一起注销）两个选择
-4. **组内只要有会话在运行，整批拒绝**——和单会话同一条铁律：只要有一个在回复或等审批/回答，一条都不删，并告诉你几个在忙；绝不偷偷跳过某个成员
-5. 执行时显示 `正在删除 i/N`，结束后汇总（"已删除 N 个"或"已删除 N 个，失败 M 个"）
-6. 如果主视图正在看的会话也在被删之列，界面会离开它：**切到同一个分组里的新会话**（清的是「未分组」时，切到第一个还存在的分组）
+![清理分组面板：选一个分组，点清空](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo-cleanup.png)
 
-分组本身会保留（DSH 把分组定义为"注册过的文件夹"，不是会话容器）：它会变成一个空分组，可以在里面新建会话，或用官方的「删除工作区」把分组移除。
+- 组里有会话正在跑（回复中、等你确认），这个分组就清不了，按钮是灰的
+- 已归档的会话也会一起删；行上写明「共 N 个会话 · M 个不在列表」，看到多少就删多少
+- 分组本身留着，只是变成空分组。想连分组一起删，用确认框里的「清空并移除分组」
+- 清理时会显示进度，结束告诉你删了几个；如果正在看的会话被删了，会自动切到同分组的新会话
+
+![清空确认框](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo-cleanup-confirm.png) ![清理完成](https://raw.githubusercontent.com/Ansellwan/DeepSeekHarness-Session-Delete/main/docs/demo-cleanup-done.png)
 
 ### 两条“删分组”的路，故意分开
 
