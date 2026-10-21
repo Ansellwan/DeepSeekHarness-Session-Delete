@@ -1,0 +1,4 @@
+# 只插入本插件自身，不改写任何官方装载行。
+- insert:
+    - id: session-delete
+      name: dsh-session-clean
