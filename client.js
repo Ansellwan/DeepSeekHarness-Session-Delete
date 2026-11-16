@@ -145,12 +145,23 @@ window.__ModuleLoader__.load({
 
     /**
      * Register one locale namespace and return its translator.
+     *
+     * The registration rides a keyed effect: re-apply dedupes by id and the
+     * returned disposer tears the dictionaries down with the plugin, so an
+     * unload/reload cycle re-registers cleanly. The narrow catch only
+     * swallows the "already has locale" owner clash (concurrent double
+     * load); every other error still throws.
      * @param {object} ctx - the client plugin context.
      * @returns {(key: string, params?: object) => string} the translator.
      */
     function bindLocale(ctx) {
-      ctx.locale.register(NS, 'zh', DICT.zh)
-      ctx.locale.register(NS, 'en', DICT.en)
+      ctx.effect(() => {
+        try {
+          return ctx.locale.register(NS, { zh: DICT.zh, en: DICT.en })
+        } catch (error) {
+          if (!String(error?.message).includes('already has locale')) throw error
+        }
+      }, 'dsh-session-clean: locale')
       return ctx.locale.bind(NS)
     }
 
