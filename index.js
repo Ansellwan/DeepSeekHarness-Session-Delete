@@ -571,7 +571,7 @@ export function apply(ctx) {
     return false
   }
 
-  server.register({
+  const route = {
     kind: 'prefix',
     path: ROUTE_PREFIX,
     handler: async (req, res) => {
@@ -688,10 +688,21 @@ export function apply(ctx) {
         sendJson(res, status, { error: error instanceof Error ? error.message : String(error) })
       }
     },
-  })
+  }
+  let routeDisposer
+  if (typeof ctx.effect === 'function') {
+    // 注册纳入插件生命周期：卸载/热替换时自动摘除路由。裸调用留下的路由会
+    // 永久占据 webserver 前缀表，让同一进程内的任何更新/重装撞
+    // duplicate prefix route 而失败（2026-11-16/17 更新事故根因）。
+    ctx.effect(() => server.register(route), 'session-delete: routes')
+  } else {
+    // 旧宿主没有 ctx.effect：按 cordis 约定把 disposer 返回给 loader。
+    routeDisposer = server.register(route)
+  }
 
   log(`删除接口就绪：${ROUTE_PREFIX}/status 与 ${ROUTE_PREFIX}/delete`)
   void opLog(`plugin activated (session-delete), routes on ${ROUTE_PREFIX}`)
   // Self-heal markers left by deleting a session that was still loaded in memory.
   void pruneDanglingIds(ctx).catch((error) => opLog(`启动清理失败: ${error?.message ?? error}`))
+  return routeDisposer
 }
