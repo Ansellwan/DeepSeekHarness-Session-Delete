@@ -23,7 +23,7 @@ window.__ModuleLoader__.load({
   factory(require) {
     // Human-synced copy of package.json#version: client bundles cannot read
     // package.json at runtime. Bump together with `npm version`.
-    const VERSION = '1.6.4'
+    const VERSION = '1.6.5'
 
     const React = require('react')
     const h = React.createElement
@@ -117,6 +117,16 @@ window.__ModuleLoader__.load({
       style.textContent = `
 .dsh-sd-overlay { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); }
 .dsh-sd-dialog { width: min(440px, calc(100vw - 48px)); border-radius: 12px; border: .5px solid var(--dsw-alias-border-l2, #333); background: var(--dsw-alias-bg-layer-2, #1f1f1f); color: var(--dsw-alias-label-primary, #eee); padding: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+.dsh-sd-menu-item { appearance: none; -webkit-appearance: none; box-sizing: border-box; display: flex; align-items: center; gap: 6px; width: 100%; min-height: 34px; margin: 0; padding: 6px 8px; border: 0; border-radius: var(--dsw-radius-md, 8px); background: transparent; color: var(--dsw-alias-label-primary, #eee); font: inherit; font-size: 13px; line-height: 20px; text-align: left; cursor: pointer; }
+.dsh-sd-menu-item[data-danger="true"] { color: var(--dsw-alias-state-error-primary, #f85149); }
+.dsh-sd-menu-item:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,.06)); }
+.dsh-sd-menu-item[data-danger="true"]:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--dsw-alias-interactive-bg-hover-danger, rgba(248,81,73,.12)); }
+.dsh-sd-menu-item:focus-visible:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,.06)); outline: none; }
+.dsh-sd-menu-item[data-danger="true"]:focus-visible:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover-danger, rgba(248,81,73,.12)); }
+.dsh-sd-menu-item[aria-disabled="true"], .dsh-sd-menu-item:disabled { opacity: .4; cursor: not-allowed; }
+.dsh-sd-menu-item-icon { display: inline-flex; flex: none; width: 14px; height: 14px; align-items: center; justify-content: center; color: inherit; }
+.dsh-sd-menu-item-icon svg { width: 14px; height: 14px; }
+.dsh-sd-menu-item-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsh-sd-title { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
 .dsh-sd-desc { margin: 0 0 14px; font-size: 15.5px; line-height: 23px; color: var(--dsw-alias-label-secondary, #aaa); word-break: break-all; }
 .dsh-sd-note { margin: -6px 0 14px; font-size: 15px; line-height: 21px; color: var(--dsw-alias-label-secondary, #999); white-space: pre-line; }
@@ -208,17 +218,25 @@ window.__ModuleLoader__.load({
       return request
     }
 
-    /** Minimal trash glyph; inline so no icon package is required. */
+    /**
+     * The native menu row's trash glyph, copied from the shipped
+     * `trash-outline` artwork. Menu icons are line icons: a filled glyph here
+     * would sit visibly heavier than pin / rename / fork / archive.
+     * @returns the 16px-viewBox outline glyph.
+     */
     function TrashIcon() {
       return h('svg', {
         width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none',
+        stroke: 'currentColor', strokeWidth: 1,
         'aria-hidden': true,
         style: { flex: 'none' },
       },
-        h('path', {
-          d: 'M6.5 2h3l.5 1h3v1.5H3V3h3l.5-1ZM4 5.5h8l-.6 8a1.5 1.5 0 0 1-1.5 1.4H6.1a1.5 1.5 0 0 1-1.5-1.4L4 5.5Z',
-          fill: 'currentColor',
-        }))
+        h('path', { d: 'M1.28149 3.88831H14.7187' }),
+        h('path', { d: 'M5.41602 3.88833V2.47962C5.41602 2.29282 5.52492 2.11366 5.71876 1.98157C5.9126 1.84948 6.17551 1.77527 6.44964 1.77527H9.55053C9.82466 1.77527 10.0876 1.84948 10.2814 1.98157C10.4753 2.11366 10.5842 2.29282 10.5842 2.47962V3.88833' }),
+        h('path', { d: 'M2.57349 3.88831L3.19366 13.2943C3.21937 13.5502 3.33952 13.7872 3.53065 13.9593C3.72178 14.1313 3.97016 14.2259 4.22729 14.2246H11.7728C12.0299 14.2259 12.2783 14.1313 12.4694 13.9593C12.6605 13.7872 12.7807 13.5502 12.8064 13.2943L13.4266 3.88831' }),
+        h('path', { d: 'M6.44946 6.98926V11.1238' }),
+        h('path', { d: 'M9.55054 6.98926V11.1238' }),
+      )
     }
 
     /**
@@ -256,19 +274,18 @@ window.__ModuleLoader__.load({
       return h('button', {
         type: 'button',
         role: 'menuitem',
-        disabled: busy,
+        className: 'dsh-sd-menu-item',
+        'data-danger': 'true',
+        'aria-disabled': busy ? 'true' : undefined,
         title: busy ? t('menuBusy') : undefined,
-        style: busy
-          ? { opacity: 0.45, cursor: 'default', color: 'var(--dsw-alias-state-error-primary, #f85149)' }
-          : { color: 'var(--dsw-alias-state-error-primary, #f85149)', cursor: 'pointer' },
         onClick: () => {
           if (busy) return
           setMenuOpen(false)
           requestDelete(sessionId, displayTitle, { workspaceId, wasOpen: isMainViewOpen() })
         },
       },
-        h(TrashIcon),
-        h('span', { style: { marginLeft: 8 } }, busy ? t('menuBusy') : t('menu')),
+        h('span', { className: 'dsh-sd-menu-item-icon', 'aria-hidden': 'true' }, h(TrashIcon)),
+        h('span', { className: 'dsh-sd-menu-item-label' }, busy ? t('menuBusy') : t('menu')),
       )
     }
 
