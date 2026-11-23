@@ -116,21 +116,27 @@ Until the DSH process exits, an empty session object stays in memory — DSH off
 
 | | |
 |---|---|
-| DeepSeek Harness | desktop `0.2.0-rc.2` — the tested target |
+| DeepSeek Harness | desktop `0.2.0-rc.2` tested at launch; `0.2.2-rc.5` — the author's daily driver |
 | Profile | **desktop: tested and supported.** Web-surface profiles (browser-form `dsh web`): expected to work (only web-surface APIs are used, no desktop-only calls) but **not separately tested — try at your own risk and report back** |
 | Node | ≥ 18 (ships with the DSH runtime) |
 | Capability class | 界面与体验 (UI & experience) |
 
 ### Technical notes (safe to skip)
 
-- **Client half** (`client.js`): one `order: 500` row in the official `sidebar.workspaces.session.menu.item` slot list, the same extension point the built-in rows use; busy state comes from the host-injected `useSessionStatus` snapshot; the dialog lives in the frame-wide `shell.overlay` slot so closing the menu cannot kill it.
-- **Host half** (`index.js`): a private `/_dsh-session-clean` route re-probes the session, then deletes in one order — unload the session from the Host's live store, remove it from the workspace registry, erase the durable files (log directory, `session_projcache` record, spill directory). The registry is written through the same open storage-domain handle the registry itself holds, so the sidebar refreshes from the change event.
+- **Client half (`client.js`)**
+  - Registers one `order: 500` row in the official `sidebar.workspaces.session.menu.item` slot list — the same list the built-in rows use (`pin=100 / rename=200 / fork=300 / archive=400`), an officially supported extension point.
+  - Busy state comes from the host-injected `useSessionStatus` snapshot.
+  - The confirmation dialog lives in the frame-wide `shell.overlay` slot, so closing the menu cannot kill it.
+- **Host half (`index.js`)**
+  - Registers a private `/_dsh-session-clean` route that re-probes the session before deleting.
+  - Deletion runs in a fixed three-step order:
+    1. Unload the session from the Host's live store.
+    2. Remove it from the workspace registry (global archive / pinned sets + each workspace's session list).
+    3. Erase the durable files (log directory, `session_projcache` record, spill directory).
+  - Registry writes go through the same open storage-domain handle the registry itself holds — writes persist and emit the change event the sidebar refreshes from.
 - **Unloading a resident session** uses the framework's own teardown primitive, `SessionStore.liveEntryFor(session).detach()` — the same `store.delete` + `session/disposed` an owner's unload performs. That event is what the session controller turns into `api-session/removed`, which makes the browser drop the row for real and closes the session's log writer, so the transcript cannot be re-persisted. `liveEntryFor` / `detachEntered` are internal (absent from the generated API catalog), so each step is capability-probed; any failure falls back to a reported hide instead of a silent lie.
 - **The projection cache needs its own handling**: it is a self-healing write-behind cache whose real domain table is `sessions`, keyed by the full session id. Removing the key through the live domain — not just the backing file — is what stops the next checkpoint from recreating the document.
-- No `app.asar` patching and no overriding of official loader rows, so DSH upgrades are safe.
-
----
-
+- **Upgrades stay safe**: no `app.asar` patching and no overriding of official loader rows.
 ## 简体中文
 
 DSH 有归档、重命名、分叉，却**没有删除会话**。这个插件在侧栏每个会话的 `⋯` 菜单里补上一项红色「删除会话」，点之前先弹确认框。删就是真删：不会给你留个"看起来删了、过两天又冒出来"的尾巴。
@@ -238,21 +244,27 @@ dsh plugin --profile desktop remove dsh-session-clean
 
 | | |
 |---|---|
-| DeepSeek Harness | 桌面版 `0.2.0-rc.2` —— 已实测的主目标 |
+| DeepSeek Harness | 桌面版 `0.2.0-rc.2`（首发实测）；`0.2.2-rc.5`（作者日常使用、持续实测） |
 | Profile | **desktop：已实测、正式支持。** Web 形态 profile（`dsh web` 浏览器形态）：按设计可用（只用到 Web 面 API，无桌面端专属调用），但**未单独实测——请自行尝试并反馈遇到的问题** |
 | Node | ≥ 18（DSH 运行时自带） |
 | 能力分类 | 界面与体验 |
 
 ### 技术说明（普通用户可跳过）
 
-- **客户端半** `client.js`：向官方 slot 列表 `sidebar.workspaces.session.menu.item` 注册 `order: 500` 的菜单行（与内置 pin=100 / rename=200 / fork=300 / archive=400 同一列表，官方支持的扩展点）；忙碌状态来自宿主注入的 `useSessionStatus` 快照；确认弹窗挂在框架级 `shell.overlay` 槽位，菜单关闭不会连带销毁。
-- **宿主半** `index.js`：注册私有路由 `/_dsh-session-clean`，先重探会话活动，再按固定顺序删除——① 把仍驻留内存的会话从宿主活动存储中卸载 → ② 从工作区注册表移除（全局归档 / 置顶集 + 各工作区会话列表）→ ③ 清理落盘数据（会话目录、`session_projcache` 投影缓存记录、spill 溢出目录）。注册表写入走它自己已打开的同一个存储域句柄，写即持久化并发变更事件，侧栏据此刷新。
-- **卸载活会话**用的是框架自己的拆除原语 `SessionStore.liveEntryFor(session).detach()`（即属主卸载时执行的同一段 `store.delete` + `session/disposed`）。该事件被会话控制器转成 `api-session/removed`，客户端据此**真的把那一行删掉**，同时关闭该会话的日志写入器，因此对话记录不会被重新落盘。`liveEntryFor` / `detachEntered` 属于内部成员（不在生成的 API catalog 里），所以每一步都先做能力探测，失败就退化为「如实汇报的隐藏」，不做无声的假删除。
-- **投影缓存为什么必须单独处理**：它是「写回型自愈缓存」，且该域真正的表名是 `sessions`、键是完整会话 id。必须通过活动域删键（而不是只删文件），否则域内存里的那行还在，下一次检查点就会把文件重新写出来。
-- 不修改 `app.asar`，不 patch 任何官方装载行，升级 DSH 不受影响。
-
----
-
+- **客户端半（`client.js`）**
+  - 向官方 slot 列表 `sidebar.workspaces.session.menu.item` 注册 `order: 500` 的菜单行——与内置 pin=100 / rename=200 / fork=300 / archive=400 同一列表，官方支持的扩展点
+  - 忙碌状态来自宿主注入的 `useSessionStatus` 快照
+  - 确认弹窗挂在框架级 `shell.overlay` 槽位——菜单关闭不会连带销毁弹窗
+- **宿主半（`index.js`）**
+  - 注册私有路由 `/_dsh-session-clean`，删除前先重探会话活动
+  - 删除按固定三步顺序执行：
+    1. 把仍驻留内存的会话从宿主活动存储中卸载
+    2. 从工作区注册表移除（全局归档 / 置顶集 + 各工作区会话列表）
+    3. 清理落盘数据（会话目录、`session_projcache` 投影缓存记录、spill 溢出目录）
+  - 注册表写入走注册表自己已打开的同一个存储域句柄——写即持久化并发出变更事件，侧栏据此刷新
+- **卸载活会话**：用框架自己的拆除原语 `SessionStore.liveEntryFor(session).detach()`——即属主卸载时执行的同一段 `store.delete` + `session/disposed`。该事件被会话控制器转成 `api-session/removed`，客户端据此真的把那一行删掉，同时关闭该会话的日志写入器，对话记录不会被重新落盘。`liveEntryFor` / `detachEntered` 属内部成员（不在生成的 API catalog 里），因此每一步都先做能力探测，失败就退化为「如实汇报的隐藏」，不做无声的假删除。
+- **投影缓存为什么单独处理**：它是「写回型自愈缓存」，域内真正的表名是 `sessions`、键为完整会话 id。必须通过活动域删键——只删文件不够，域内存里那行还在，下一次检查点会把文件重新写出来。
+- **升级安全**：不修改 `app.asar`，不 patch 任何官方装载行。
 ## License / 许可证
 
 MIT

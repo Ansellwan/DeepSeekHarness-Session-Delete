@@ -110,18 +110,27 @@ dsh plugin --profile desktop remove dsh-session-clean
 
 | | |
 |---|---|
-| DeepSeek Harness | 桌面版 `0.2.0-rc.2` —— 已实测的主目标 |
+| DeepSeek Harness | 桌面版 `0.2.0-rc.2`（首发实测）；`0.2.2-rc.5`（作者日常使用、持续实测） |
 | Profile | **desktop：已实测、正式支持。** Web 形态 profile（`dsh web` 浏览器形态）：按设计可用（只用到 Web 面 API，无桌面端专属调用），但**未单独实测——请自行尝试并反馈遇到的问题** |
 | Node | ≥ 18（DSH 运行时自带） |
 | 能力分类 | 界面与体验 |
 
 ## 技术说明（普通用户可跳过）
 
-- **客户端半** `client.js`：向官方 slot 列表 `sidebar.workspaces.session.menu.item` 注册 `order: 500` 的菜单行（与内置 pin=100 / rename=200 / fork=300 / archive=400 同一列表，官方支持的扩展点）；忙碌状态来自宿主注入的 `useSessionStatus` 快照；确认弹窗挂在框架级 `shell.overlay` 槽位，菜单关闭不会连带销毁。
-- **宿主半** `index.js`：注册私有路由 `/_dsh-session-clean`，先重探会话活动，再按固定顺序删除——① 把仍驻留内存的会话从宿主活动存储中卸载 → ② 从工作区注册表移除（全局归档 / 置顶集 + 各工作区会话列表）→ ③ 清理落盘数据（会话目录、`session_projcache` 投影缓存记录、spill 溢出目录）。注册表写入走它自己已打开的同一个存储域句柄，写即持久化并发变更事件，侧栏据此刷新。
-- **卸载活会话**用的是框架自己的拆除原语 `SessionStore.liveEntryFor(session).detach()`（即属主卸载时执行的同一段 `store.delete` + `session/disposed`）。该事件被会话控制器转成 `api-session/removed`，客户端据此**真的把那一行删掉**，同时关闭该会话的日志写入器，因此对话记录不会被重新落盘。`liveEntryFor` / `detachEntered` 属于内部成员（不在生成的 API catalog 里），所以每一步都先做能力探测，失败就退化为「如实汇报的隐藏」，不做无声的假删除。
-- **投影缓存为什么必须单独处理**：它是「写回型自愈缓存」，且该域真正的表名是 `sessions`、键是完整会话 id。必须通过活动域删键（而不是只删文件），否则域内存里的那行还在，下一次检查点就会把文件重新写出来。
-- 不修改 `app.asar`，不 patch 任何官方装载行，升级 DSH 不受影响。
+- **客户端半（`client.js`）**
+  - 向官方 slot 列表 `sidebar.workspaces.session.menu.item` 注册 `order: 500` 的菜单行——与内置 pin=100 / rename=200 / fork=300 / archive=400 同一列表，官方支持的扩展点
+  - 忙碌状态来自宿主注入的 `useSessionStatus` 快照
+  - 确认弹窗挂在框架级 `shell.overlay` 槽位——菜单关闭不会连带销毁弹窗
+- **宿主半（`index.js`）**
+  - 注册私有路由 `/_dsh-session-clean`，删除前先重探会话活动
+  - 删除按固定三步顺序执行：
+    1. 把仍驻留内存的会话从宿主活动存储中卸载
+    2. 从工作区注册表移除（全局归档 / 置顶集 + 各工作区会话列表）
+    3. 清理落盘数据（会话目录、`session_projcache` 投影缓存记录、spill 溢出目录）
+  - 注册表写入走注册表自己已打开的同一个存储域句柄——写即持久化并发出变更事件，侧栏据此刷新
+- **卸载活会话**：用框架自己的拆除原语 `SessionStore.liveEntryFor(session).detach()`——即属主卸载时执行的同一段 `store.delete` + `session/disposed`。该事件被会话控制器转成 `api-session/removed`，客户端据此真的把那一行删掉，同时关闭该会话的日志写入器，对话记录不会被重新落盘。`liveEntryFor` / `detachEntered` 属内部成员（不在生成的 API catalog 里），因此每一步都先做能力探测，失败就退化为「如实汇报的隐藏」，不做无声的假删除。
+- **投影缓存为什么单独处理**：它是「写回型自愈缓存」，域内真正的表名是 `sessions`、键为完整会话 id。必须通过活动域删键——只删文件不够，域内存里那行还在，下一次检查点会把文件重新写出来。
+- **升级安全**：不修改 `app.asar`，不 patch 任何官方装载行。
 
 ## 许可证
 
